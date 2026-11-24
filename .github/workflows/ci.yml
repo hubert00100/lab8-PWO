@@ -5,6 +5,9 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [linux-x64, win-x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v3
@@ -13,19 +16,27 @@ jobs:
       - run: dotnet restore
       - run: dotnet build
       - name: Publish single-file app
-        run: dotnet publish -o app -r linux-x64 --sc /p:PublishSingleFile=true,AssemblyName=app
-      - run: tar cf app.tar app/
+        run: dotnet publish -o app-${{ matrix.arch }} -r ${{ matrix.arch }} --sc /p:PublishSingleFile=true,AssemblyName=app
+      - run: tar cf app-${{ matrix.arch }}.tar app-${{ matrix.arch }}/
       - uses: actions/upload-artifact@v4
         with:
-          name: app.tar
-          path: app.tar
+          name: app-${{ matrix.arch }}.tar
+          path: app-${{ matrix.arch }}.tar
 
   test:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [linux-x64, win-x64]
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: app.tar
-      - run: tar xf app.tar
-      - run: ./app/app
+          name: app-${{ matrix.arch }}.tar
+      - run: tar xf app-${{ matrix.arch }}.tar
+      - name: Run Linux binary
+        if: matrix.arch == 'linux-x64'
+        run: ./app-linux-x64/app
+      - name: Verify Windows package contents
+        if: matrix.arch == 'win-x64'
+        run: ls -la app-win-x64/
